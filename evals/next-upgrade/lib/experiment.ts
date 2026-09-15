@@ -1,6 +1,6 @@
 import { withoutAppInstall } from './lifecycle'
 import { createHash } from 'node:crypto'
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -10,12 +10,7 @@ import {
   type Agent,
   type ExperimentConfig,
 } from '@vercel/agent-eval'
-import {
-  compileRuntime,
-  runtimeFiles,
-  setupUpgrade,
-  toolsDirectory,
-} from './fixture'
+import { setupUpgrade } from './fixture'
 
 // Keep the one private API dependency here. 2.2.1 exposes native definitions but
 // not the orchestrator needed to run a derived definition. Everything else uses
@@ -58,25 +53,13 @@ export function upgradeExperiment(
   harness: 'codex' | 'claude-code'
 ): ExperimentConfig {
   const fixture = process.env.NEXT_UPGRADE_EVAL_CASE
-  if (!fixture || !/^[a-z0-9-]+$/.test(fixture))
-    throw new Error('Select one upgrade eval case')
+  if (!fixture) throw new Error('Select one upgrade eval case')
   const native = getAgent(`vercel-ai-gateway/${harness}`)
   const name = `next-upgrade/${harness}`
-  const generated = join(__dirname, '../.generated')
-  mkdirSync(generated, { recursive: true })
-  const runtime = Object.fromEntries(
-    runtimeFiles.map((file) => [file, compileRuntime(file)])
-  )
-  const runner = join(
-    generated,
-    `runner-${createHash('sha256').update(runtime.runner).digest('hex')}.mjs`
-  )
-  writeFileSync(runner, runtime.runner)
   const sourceFingerprint = [
-    JSON.stringify(runtime),
     readFileSync(join(__dirname, '../../lib/setup.ts'), 'utf8'),
-    ...['experiment', 'fixture', 'lifecycle'].map((file) =>
-      readFileSync(join(__dirname, `${file}.ts`), 'utf8')
+    ...['entry.mjs', 'experiment.ts', 'fixture.ts', 'lifecycle.ts'].map(
+      (file) => readFileSync(join(__dirname, file), 'utf8')
     ),
   ].join('\n')
   const judgeName = 'next-upgrade-judge/claude-code'
@@ -85,12 +68,7 @@ export function upgradeExperiment(
     {
       ...native.definition,
       name,
-      runnerPath: runner,
       install: withoutAppInstall(native.definition),
-      runnerExtra: (options) => ({
-        ...native.definition.runnerExtra?.(options),
-        upgradeTools: toolsDirectory,
-      }),
       fingerprintExtra: (config) => {
         const hash = createHash('sha256')
         hash.update(sourceFingerprint)
@@ -127,19 +105,11 @@ export function upgradeExperiment(
       model: 'claude-haiku-4-5',
     },
     evals: fixture,
-    runs: 1,
     earlyExit: false,
-    scripts: [],
     timeout: 1800,
-    sandbox: 'auto',
     copyFiles: 'changed',
     setup: async (sandbox) => {
-      await setupUpgrade(
-        sandbox,
-        join(__dirname, '../evals', fixture),
-        native.definition.runnerPath,
-        runtime
-      )
+      await setupUpgrade(sandbox, join(__dirname, '../evals', fixture))
     },
   }
 }

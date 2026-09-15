@@ -10,8 +10,8 @@ const requireApp = createRequire(join(process.cwd(), 'package.json'))
 const executable = candidate
   ? join(tools, 'next/node_modules/next/dist/bin/next')
   : requireApp.resolve('next/dist/bin/next')
+
 if (candidate) {
-  // Exercise the packed candidate rather than delegating to published canary.
   process.env.__NEXT_UPGRADE_LOCAL = '1'
   appendFileSync(
     join(tools, 'invocations.jsonl'),
@@ -22,5 +22,6 @@ if (candidate) {
     }) + '\n'
   )
 }
+
 process.argv = [process.execPath, executable, ...args]
 await import(pathToFileURL(executable).href)

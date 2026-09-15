@@ -18,42 +18,35 @@ NEXT_UPGRADE_EVAL_EXPERIMENT=codex pnpm eval:upgrade <fixture-name>
 ```
 
 Omit the experiment filter to run Codex and Claude. `--list` lists fixtures without
-packing or making model calls. Results use the framework's normal `results/` layout.
-Fixtures are added by the feature PRs stacked above this infrastructure.
+packing or making model calls. Run one named fixture at a time. Results use the
+framework's normal `results/` layout. Fixtures are added by the feature PRs stacked
+above this infrastructure.
 
 ## Lifecycle
 
-1. Upload the fixture's lockfile explicitly: agent-eval excludes lockfiles.
+1. Restore the fixture's lockfile and ignore rules after agent-eval initializes Git.
 2. Install the pinned app, reuse `installPlaywright` and `prepareFixture`, and
-   install candidate Next.js and codemod packages in a separate directory.
-3. Let the framework relocate its workspace and install the native agents and
+   install candidate Next.js separately.
+3. Upload the candidate codemod archive for feature evals, route the app's
+   `.bin/next` launcher to the candidate upgrade CLI, verify the manifest and
+   lockfile, and commit the prepared fixture.
+4. Let the framework relocate its workspace and install the native agents and
    judge. Both derived definitions suppress only their redundant app install.
-4. Immediately before execution, verify the app version and manifest/lock hashes,
-   establish the baseline commit, and create the disposable remote. This occurs
-   after the framework's removal of `origin`. Route the app's `.bin/next` launcher
-   through the same entry point so `pnpm exec next upgrade` reaches the candidate
-   without replacing the installed framework runtime.
-5. Run the unchanged native agent runner. The separate judge uses its native runner
-   directly and never reinitializes the app. The framework withholds `EVAL.ts` and
-   captures the result as usual.
+5. Run the unchanged native agent and judge. The framework withholds `EVAL.ts` and
+   captures transcripts and results as usual.
 
-TypeScript runtime sources are transpiled using the repository's existing
-TypeScript dependency when loading the experiment. Runtime files and package
-archives remain fixed for each run, including concurrent runs. Invalid fixtures
-fail before execution, and infrastructure failures remain in the results.
-No Python or new dependency is
-required. `experiment.ts` isolates one pinned private orchestrator import because
-agent-eval 2.2.1 exports native definitions but not their orchestrator. Revalidate
-this adapter when upgrading that dependency.
+Package archives remain fixed for each run, including concurrent runs. Invalid
+fixtures fail before execution, and infrastructure failures remain in the results.
+No new dependency is required. `experiment.ts` isolates one pinned private
+orchestrator import because agent-eval 2.2.1 exports native definitions but not
+the orchestrator needed to remove its redundant app install. Revalidate this
+adapter when upgrading that dependency.
 
 ## Adding feature coverage
 
 Feature PRs add ordinary app fixtures with `PROMPT.md`, `EVAL.ts`, and a pinned
-`pnpm-lock.yaml`. Security fixtures and their reference/negative controls belong
-above this infrastructure layer. Keep graders and reference solutions withheld.
-Use deterministic assertions for versions, committed files, and runtime behavior;
-use the existing semantic matchers where source meaning matters.
-
-The terminal entry, controlled security metadata, repository decision scenarios,
-and committed-migration grading must be validated as they are added. A sandbox/authentication
-failure remains an infrastructure failure, never a passing or skipped migration.
+`pnpm-lock.yaml`. They own scenario setup, repository remotes, advisory responses,
+grading, and reference or negative controls. The framework removes `origin` while
+preparing the neutral workspace, so a scenario that needs a remote must add it
+from its own runner. Keep graders and reference solutions withheld, and retain
+sandbox or authentication failures as failures.
