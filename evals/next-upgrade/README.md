@@ -19,7 +19,7 @@ NEXT_UPGRADE_EVAL_EXPERIMENT=codex pnpm eval:upgrade tooling-smoke
 
 Omit the experiment filter to run Codex and Claude. `--list` lists fixtures without
 packing or making model calls. Results use the framework's normal `results/` layout.
-The infrastructure smoke asks an agent to run `next upgrade --help` and leave a
+The infrastructure smoke asks an agent to run `pnpm exec next upgrade --help` and leave a
 pinned Next.js 13 app unchanged. It does not claim to test a security migration.
 
 ## Lifecycle
@@ -31,13 +31,18 @@ pinned Next.js 13 app unchanged. It does not claim to test a security migration.
    judge. Both derived definitions suppress only their redundant app install.
 4. Immediately before execution, verify the app version and manifest/lock hashes,
    establish the baseline commit, and create the disposable remote. This occurs
-   after the framework's removal of `origin`.
+   after the framework's removal of `origin`. Route the app's `.bin/next` launcher
+   through the same entry point so `pnpm exec next upgrade` reaches the candidate
+   without replacing the installed framework runtime.
 5. Run the unchanged native agent runner. The separate judge uses its native runner
    directly and never reinitializes the app. The framework withholds `EVAL.ts` and
    captures the result as usual.
 
 TypeScript runtime sources are transpiled using the repository's existing
-TypeScript dependency when preparing a sandbox. No Python or new dependency is
+TypeScript dependency when loading the experiment. Runtime files and package
+archives remain fixed for each run, including concurrent runs. Invalid fixtures
+fail before execution, and infrastructure failures remain in the results.
+No Python or new dependency is
 required. `experiment.ts` isolates one pinned private orchestrator import because
 agent-eval 2.2.1 exports native definitions but not their orchestrator. Revalidate
 this adapter when upgrading that dependency.

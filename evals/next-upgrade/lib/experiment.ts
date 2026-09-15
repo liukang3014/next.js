@@ -57,12 +57,28 @@ function register(
 export function upgradeExperiment(
   harness: 'codex' | 'claude-code'
 ): ExperimentConfig {
+  const fixture = process.env.NEXT_UPGRADE_EVAL_CASE
+  if (!fixture || !/^[a-z0-9-]+$/.test(fixture))
+    throw new Error('Select one upgrade eval case')
   const native = getAgent(`vercel-ai-gateway/${harness}`)
   const name = `next-upgrade/${harness}`
   const generated = join(__dirname, '../.generated')
   mkdirSync(generated, { recursive: true })
-  const runner = join(generated, 'runner.mjs')
-  writeFileSync(runner, compileRuntime('runner'))
+  const runtime = Object.fromEntries(
+    runtimeFiles.map((file) => [file, compileRuntime(file)])
+  )
+  const runner = join(
+    generated,
+    `runner-${createHash('sha256').update(runtime.runner).digest('hex')}.mjs`
+  )
+  writeFileSync(runner, runtime.runner)
+  const sourceFingerprint = [
+    JSON.stringify(runtime),
+    readFileSync(join(__dirname, '../../lib/setup.ts'), 'utf8'),
+    ...['experiment', 'fixture', 'lifecycle'].map((file) =>
+      readFileSync(join(__dirname, `${file}.ts`), 'utf8')
+    ),
+  ].join('\n')
   const judgeName = 'next-upgrade-judge/claude-code'
   register(
     native,
@@ -77,7 +93,7 @@ export function upgradeExperiment(
       }),
       fingerprintExtra: (config) => {
         const hash = createHash('sha256')
-        hash.update(readFileSync(join(__dirname, '../../lib/setup.ts')))
+        hash.update(sourceFingerprint)
         for (const variable of [
           'NEXT_UPGRADE_EVAL_NEXT_TARBALL',
           'NEXT_UPGRADE_EVAL_CODEMOD_TARBALL',
@@ -87,13 +103,6 @@ export function upgradeExperiment(
             throw new Error(`Missing ${variable}; run pnpm eval:upgrade`)
           hash.update(readFileSync(path))
         }
-        for (const file of [
-          'experiment',
-          'fixture',
-          'lifecycle',
-          ...runtimeFiles,
-        ])
-          hash.update(readFileSync(join(__dirname, `${file}.ts`)))
         return {
           ...native.definition.fingerprintExtra?.(config),
           upgradeInputs: hash.digest('hex'),
@@ -110,9 +119,6 @@ export function upgradeExperiment(
     name: judgeName,
     install: withoutAppInstall(judge.definition),
   })
-  const fixture = process.env.NEXT_UPGRADE_EVAL_CASE
-  if (!fixture || !/^[a-z0-9-]+$/.test(fixture))
-    throw new Error('Select one upgrade eval case')
   return {
     agent: name,
     model: harness === 'codex' ? 'openai/gpt-5.6-terra' : 'claude-sonnet-4-6',
@@ -127,11 +133,13 @@ export function upgradeExperiment(
     timeout: 1800,
     sandbox: 'auto',
     copyFiles: 'changed',
-    setup: (sandbox) =>
-      setupUpgrade(
+    setup: async (sandbox) => {
+      await setupUpgrade(
         sandbox,
         join(__dirname, '../evals', fixture),
-        native.definition.runnerPath
-      ),
+        native.definition.runnerPath,
+        runtime
+      )
+    },
   }
 }

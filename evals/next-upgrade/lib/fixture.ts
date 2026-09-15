@@ -23,8 +23,17 @@ export function compileRuntime(name: (typeof runtimeFiles)[number]) {
 export async function setupUpgrade(
   sandbox: Sandbox,
   fixture: string,
-  nativeRunner: string
+  nativeRunner: string,
+  runtime: Record<string, string>
 ) {
+  const uploaded = JSON.parse(await sandbox.readFile('package.json'))
+  const selected = JSON.parse(
+    readFileSync(join(fixture, 'package.json'), 'utf8')
+  )
+  if (JSON.stringify(uploaded) !== JSON.stringify(selected))
+    throw new Error(
+      'agent-eval selected a different fixture than the requested upgrade app'
+    )
   async function run(command: string, args: string[]) {
     const result = await sandbox.runCommand(command, args)
     if (result.exitCode !== 0)
@@ -66,7 +75,7 @@ export async function setupUpgrade(
     ...Object.fromEntries(
       runtimeFiles.map((name) => [
         `${toolsDirectory}/${name}.mjs`,
-        compileRuntime(name),
+        runtime[name],
       ])
     ),
     [`${toolsDirectory}/bin/next`]: `#!/bin/sh\nexec node ${toolsDirectory}/entry.mjs "$@"\n`,

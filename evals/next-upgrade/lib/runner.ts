@@ -6,10 +6,11 @@ const input = JSON.parse(process.argv[2])
 const tools = input.extra.upgradeTools
 let result
 try {
-  const { establishBaseline } = await import(
+  const { establishBaseline, installUpgradeEntry } = await import(
     pathToFileURL(join(tools, 'baseline.mjs')).href
   )
   establishBaseline(input.cwd, tools)
+  installUpgradeEntry(input.cwd, tools)
   process.env.PATH = `${tools}/bin:${process.env.PATH}`
   process.env.NEXT_TELEMETRY_DISABLED = '1'
   const native = await import(pathToFileURL(join(tools, 'native.mjs')).href)

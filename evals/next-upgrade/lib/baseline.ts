@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  chmodSync,
+} from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
@@ -64,4 +71,16 @@ export function establishBaseline(cwd: string, tools: string) {
   }
   writeFileSync(join(tools, 'baseline.json'), JSON.stringify(baseline))
   return baseline
+}
+
+export function installUpgradeEntry(cwd: string, tools: string) {
+  // pnpm exec prepends the app's .bin to PATH. Replace only its launcher, never
+  // follow a symlink into the published Next runtime. entry.mjs forwards every
+  // command except upgrade to that unchanged installed runtime.
+  const bin = join(cwd, 'node_modules/.bin')
+  mkdirSync(bin, { recursive: true })
+  const next = join(bin, 'next')
+  rmSync(next, { force: true })
+  writeFileSync(next, `#!/bin/sh\nexec node ${tools}/entry.mjs "$@"\n`)
+  chmodSync(next, 0o755)
 }

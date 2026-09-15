@@ -5,11 +5,15 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { establishBaseline } from '../../evals/next-upgrade/lib/baseline'
+import {
+  establishBaseline,
+  installUpgradeEntry,
+} from '../../evals/next-upgrade/lib/baseline'
 import { withoutAppInstall } from '../../evals/next-upgrade/lib/lifecycle'
 
 let directory: string
@@ -63,6 +67,24 @@ test('establishes fetchable remote history after workspace neutralization', () =
     JSON.parse(readFileSync(join(tools, 'baseline.json'), 'utf8')).head
   ).toBe(baseline.head)
   git('fetch', 'origin')
+})
+
+test('routes package-manager upgrade commands without overwriting the installed runtime', () => {
+  const runtime = join(app, 'node_modules/next/runtime.js')
+  writeFileSync(runtime, 'published runtime')
+  mkdirSync(join(app, 'node_modules/.bin'))
+  symlinkSync(runtime, join(app, 'node_modules/.bin/next'))
+  writeFileSync(
+    join(tools, 'entry.mjs'),
+    'console.log(JSON.stringify(process.argv.slice(2)))'
+  )
+  installUpgradeEntry(app, tools)
+  expect(readFileSync(runtime, 'utf8')).toBe('published runtime')
+  const args = ['upgrade', '--ai=security', 'app with spaces']
+  const output = execFileSync(join(app, 'node_modules/.bin/next'), args, {
+    encoding: 'utf8',
+  })
+  expect(JSON.parse(output)).toEqual(args)
 })
 
 test.each(['package.json', 'pnpm-lock.yaml', 'node_modules/next/package.json'])(
