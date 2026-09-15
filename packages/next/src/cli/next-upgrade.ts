@@ -14,6 +14,7 @@ type NextUpgradeOptions = {
   revision: string | undefined
   verbose: boolean
   ai: boolean | string
+  experimentalAgenticDryRun: boolean
 }
 
 export async function spawnNextUpgrade(
@@ -38,7 +39,11 @@ export async function spawnNextUpgrade(
           'next@canary',
           'upgrade',
           baseDir,
-          `--ai${typeof options.ai === 'string' ? `=${options.ai}` : ''}`,
+          `${
+            options.experimentalAgenticDryRun
+              ? '--experimental-agentic-dry-run'
+              : '--ai'
+          }${typeof options.ai === 'string' ? `=${options.ai}` : ''}`,
         ]
 
         if (options.verbose) {
@@ -142,9 +147,15 @@ export async function spawnNextUpgrade(
 Upgrade type: ${targetRequest}.
 ${references}
 Read and follow ${JSON.stringify(join(runDirectory, 'docs/01-app/02-guides/upgrading/agentic-upgrade.md'))} before making changes.
-Preserve existing permissions.`
+Preserve existing permissions.${
+        options.experimentalAgenticDryRun
+          ? '\nThis is a --experimental-agentic-dry-run: complete the migration and verification, create local commits, then stop. Do not push or create a PR/MR.'
+          : ''
+      }`
 
-      Log.bootstrap(prompt)
+      const { handoffUpgrade } =
+        require('../lib/upgrade/harness') as typeof import('../lib/upgrade/harness')
+      await handoffUpgrade(prompt, baseDir)
     } catch (error) {
       Log.error(
         '[next upgrade: blocked]',

@@ -112,7 +112,11 @@ class NextRootCommand extends Command {
       // The upgrade harness may run both dev and production checks. Preserve
       // its caller's environment instead of forcing all child commands into
       // production mode merely because they were launched through this CLI.
-      if (commandName !== 'upgrade' || !event.getOptionValue('ai')) {
+      if (
+        commandName !== 'upgrade' ||
+        (!event.getOptionValue('ai') &&
+          !event.getOptionValue('experimentalAgenticDryRun'))
+      ) {
         ;(process.env as any).NODE_ENV = process.env.NODE_ENV || defaultEnv
         ;(process.env as any).NEXT_RUNTIME = 'nodejs'
       }
@@ -581,8 +585,20 @@ program
   )
   .option('--verbose', 'Verbose output', false)
   .option('--ai [type]', 'Upgrade with AI for security fixes.')
+  .option(
+    '--experimental-agentic-dry-run [type]',
+    'Run an AI upgrade and commit locally without pushing or creating a PR.'
+  )
   .action(async (directory, options, command) => {
-    const ai = options.ai ?? false
+    const aiTypes = [options.ai, options.experimentalAgenticDryRun].filter(
+      (value) => value !== undefined
+    )
+
+    if (aiTypes.length > 1) {
+      command.error('Specify only one AI upgrade option.')
+    }
+
+    const ai = aiTypes[0] ?? false
 
     if (ai === '') {
       command.error('Provide an AI upgrade type or omit the equals sign.')
@@ -596,6 +612,7 @@ program
     await mod.spawnNextUpgrade(directory, {
       ...options,
       ai,
+      experimentalAgenticDryRun: !!options.experimentalAgenticDryRun,
     })
   })
 
