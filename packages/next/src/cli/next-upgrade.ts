@@ -1,5 +1,7 @@
 import { spawn } from 'child_process'
-import { constants as osConstants } from 'os'
+import { cp, mkdtemp, rm } from 'fs/promises'
+import { constants as osConstants, tmpdir } from 'os'
+import { join } from 'path'
 import spawnCanary from 'next/dist/compiled/cross-spawn'
 import createSpinner from '../build/spinner'
 import * as Log from '../build/output/log'
@@ -105,6 +107,27 @@ export async function spawnNextUpgrade(
         `Upgrade: Next.js ${result.installedVersion} → ${result.targetVersion}`
       )
 
+      // Use the invoking CLI's guides, even when the app runs an older Next.js.
+      // Retain them outside the app so dependency changes cannot remove them.
+      const bundledDocs = join(__dirname, '../docs')
+      const runDirectory = await mkdtemp(join(tmpdir(), 'next-upgrade-'))
+      const guidesSpinner = createSpinner('Preparing upgrade guides')
+
+      try {
+        for (const router of ['01-app', '02-pages']) {
+          await cp(
+            join(bundledDocs, router, '02-guides/upgrading'),
+            join(runDirectory, 'docs', router, '02-guides/upgrading'),
+            { recursive: true }
+          )
+        }
+      } catch (error) {
+        await rm(runDirectory, { recursive: true, force: true })
+        throw error
+      } finally {
+        guidesSpinner?.stop()
+      }
+
       const references =
         result.references.length === 1
           ? `Reference: ${result.references[0]}`
@@ -114,10 +137,11 @@ export async function spawnNextUpgrade(
       // `experimental.agenticAutoUpgrade`, ask the agent to enable it after
       // verification so future upgrade reminders can use the same policy.
 
-      // Pass resolved inputs directly so the caller can hand them to an agent.
+      // Pass resolved inputs directly; the agent owns repairs and verification.
       const prompt = `Upgrade ${JSON.stringify(baseDir)} from Next.js ${result.installedVersion} to ${result.targetVersion}.
 Upgrade type: ${targetRequest}.
 ${references}
+Read and follow ${JSON.stringify(join(runDirectory, 'docs/01-app/02-guides/upgrading/agentic-upgrade.md'))} before making changes.
 Preserve existing permissions.`
 
       Log.bootstrap(prompt)
