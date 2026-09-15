@@ -109,8 +109,13 @@ class NextRootCommand extends Command {
         }
       }
 
-      ;(process.env as any).NODE_ENV = process.env.NODE_ENV || defaultEnv
-      ;(process.env as any).NEXT_RUNTIME = 'nodejs'
+      // The upgrade harness may run both dev and production checks. Preserve
+      // its caller's environment instead of forcing all child commands into
+      // production mode merely because they were launched through this CLI.
+      if (commandName !== 'upgrade' || !event.getOptionValue('ai')) {
+        ;(process.env as any).NODE_ENV = process.env.NODE_ENV || defaultEnv
+        ;(process.env as any).NEXT_RUNTIME = 'nodejs'
+      }
 
       if (
         process.platform === 'darwin' &&
@@ -554,14 +559,13 @@ program
 const nextVersion = process.env.__NEXT_VERSION || 'unknown'
 program
   .command('upgrade')
+  .aliases(['update', 'up'])
   .description(
     'Upgrade Next.js apps to desired versions with a single command.'
   )
   .argument(
     '[directory]',
-    `A Next.js project directory to upgrade. ${italic(
-      'If no directory is provided, the current directory will be used.'
-    )}`
+    'A directory with the Next.js application to upgrade. Defaults to the current directory.'
   )
   .usage('[directory] [options]')
   .option(
@@ -576,9 +580,23 @@ program
           : 'latest'
   )
   .option('--verbose', 'Verbose output', false)
-  .action(async (directory, options) => {
+  .option('--ai [type]', 'Upgrade with AI for security fixes.')
+  .action(async (directory, options, command) => {
+    const ai = options.ai ?? false
+
+    if (ai === '') {
+      command.error('Provide an AI upgrade type or omit the equals sign.')
+    }
+
+    if (ai && command.getOptionValueSource('revision') !== 'default') {
+      command.error('Use --ai <type> instead of --revision for AI upgrades.')
+    }
+
     const mod = await import('../cli/next-upgrade.js')
-    mod.spawnNextUpgrade(directory, options)
+    await mod.spawnNextUpgrade(directory, {
+      ...options,
+      ai,
+    })
   })
 
 program
