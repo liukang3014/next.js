@@ -13,14 +13,13 @@ assertions, judging and result storage belong to `@vercel/agent-eval`.
 
 ```sh
 pnpm build-all
-pnpm eval:upgrade tooling-smoke --dry
-NEXT_UPGRADE_EVAL_EXPERIMENT=codex pnpm eval:upgrade tooling-smoke
+pnpm eval:upgrade <fixture-name> --dry
+NEXT_UPGRADE_EVAL_EXPERIMENT=codex pnpm eval:upgrade <fixture-name>
 ```
 
 Omit the experiment filter to run Codex and Claude. `--list` lists fixtures without
 packing or making model calls. Results use the framework's normal `results/` layout.
-The infrastructure smoke asks an agent to run `pnpm exec next upgrade --help` and leave a
-pinned Next.js 13 app unchanged. It does not claim to test a security migration.
+Fixtures are added by the feature PRs stacked above this infrastructure.
 
 ## Lifecycle
 
@@ -56,7 +55,5 @@ Use deterministic assertions for versions, committed files, and runtime behavior
 use the existing semantic matchers where source meaning matters.
 
 The terminal entry, controlled security metadata, repository decision scenarios,
-and committed-migration grading must be validated as they are added. This smoke
-case deliberately exercises only the infrastructure available on canary. A
-sandbox/authentication failure remains an infrastructure failure, never a passing
-or skipped migration.
+and committed-migration grading must be validated as they are added. A sandbox/authentication
+failure remains an infrastructure failure, never a passing or skipped migration.

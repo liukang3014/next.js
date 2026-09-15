@@ -7,11 +7,12 @@ const { linkEnvironment } = require('../lib/environment')
 async function main() {
   const root = path.resolve(__dirname, '../..')
   const args = process.argv.slice(2)
-  const cases = fs
-    .readdirSync(path.join(__dirname, 'evals'))
-    .filter((name) =>
-      fs.existsSync(path.join(__dirname, 'evals', name, 'PROMPT.md'))
-    )
+  const fixturesDirectory = path.join(__dirname, 'evals')
+  const cases = (
+    fs.existsSync(fixturesDirectory) ? fs.readdirSync(fixturesDirectory) : []
+  ).filter((name) =>
+    fs.existsSync(path.join(fixturesDirectory, name, 'PROMPT.md'))
+  )
   const selected = args.filter((arg) => !arg.startsWith('--'))
   const requested = selected.length ? selected : cases
   const harness = process.env.NEXT_UPGRADE_EVAL_EXPERIMENT
@@ -34,6 +35,10 @@ async function main() {
     console.log(requested.join('\n'))
     process.exit(0)
   }
+  if (!requested.length)
+    throw new Error(
+      'No upgrade eval fixtures found; add a feature fixture first'
+    )
   for (const [name, entry] of [
     ['next', 'dist/bin/next'],
     ['next-codemod', 'bin/next-codemod.js'],
